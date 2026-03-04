@@ -21,7 +21,7 @@ export default function StoryDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("stories")
-        .select("*, profiles!stories_user_id_fkey(display_name)")
+        .select("*, profiles(display_name)")
         .eq("id", id!)
         .single();
       if (error) throw error;
