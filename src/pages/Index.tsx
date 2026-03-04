@@ -12,7 +12,7 @@ const Index = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("stories")
-        .select("*, profiles!stories_user_id_fkey(display_name), comments(count)")
+        .select("*, profiles(display_name), comments(count)")
         .order("created_at", { ascending: false })
         .limit(5);
       if (error) throw error;
