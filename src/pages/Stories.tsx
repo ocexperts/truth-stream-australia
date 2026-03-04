@@ -9,10 +9,17 @@ export default function StoriesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("stories")
-        .select("*, profiles(display_name), comments(count)")
+        .select("*, comments(count)")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+
+      const userIds = [...new Set(data.map(s => s.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .in("user_id", userIds);
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p.display_name]) || []);
+      return data.map(s => ({ ...s, author_name: profileMap.get(s.user_id) || "Anonymous" }));
     },
   });
 
@@ -36,7 +43,7 @@ export default function StoriesPage() {
               <StoryCard
                 key={story.id}
                 story={story}
-                authorName={story.profiles?.display_name || "Anonymous"}
+                authorName={story.author_name}
                 commentCount={(story.comments as any)?.[0]?.count || 0}
               />
             ))}

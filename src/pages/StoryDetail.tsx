@@ -21,11 +21,18 @@ export default function StoryDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("stories")
-        .select("*, profiles(display_name)")
+        .select("*")
         .eq("id", id!)
         .single();
       if (error) throw error;
-      return data;
+      
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("user_id", data.user_id)
+        .single();
+      
+      return { ...data, author_name: profile?.display_name || "Anonymous" };
     },
     enabled: !!id,
   });
@@ -35,11 +42,18 @@ export default function StoryDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("comments")
-        .select("*, profiles(display_name)")
+        .select("*")
         .eq("story_id", id!)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return data;
+
+      const userIds = [...new Set(data.map(c => c.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .in("user_id", userIds);
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p.display_name]) || []);
+      return data.map(c => ({ ...c, author_name: profileMap.get(c.user_id) || "Anonymous" }));
     },
     enabled: !!id,
   });
@@ -69,7 +83,6 @@ export default function StoryDetailPage() {
       vote_type: 1,
     });
     if (!error) {
-      // Update upvote count
       const { count } = await supabase
         .from("votes")
         .select("*", { count: "exact", head: true })
@@ -123,7 +136,7 @@ export default function StoryDetailPage() {
               )}
               <h1 className="font-display text-3xl font-black leading-tight">{story.title}</h1>
               <div className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
-                <span>{story.profiles?.display_name || "Anonymous"}</span>
+                <span>{story.author_name}</span>
                 <span>·</span>
                 <span>{formatDistanceToNow(new Date(story.created_at), { addSuffix: true })}</span>
               </div>
@@ -134,7 +147,6 @@ export default function StoryDetailPage() {
           </div>
         </article>
 
-        {/* Comments */}
         <section className="mt-12 border-t border-border pt-8">
           <h2 className="font-display text-xl font-bold mb-6 flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
@@ -166,7 +178,7 @@ export default function StoryDetailPage() {
             {comments?.map((c) => (
               <div key={c.id} className="border-l-2 border-border pl-4 py-2">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                  <span className="font-medium text-foreground">{c.profiles?.display_name || "Anonymous"}</span>
+                  <span className="font-medium text-foreground">{c.author_name}</span>
                   <span>·</span>
                   <span>{formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</span>
                 </div>
