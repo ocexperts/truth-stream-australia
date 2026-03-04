@@ -10,13 +10,22 @@ const Index = () => {
   const { data: recentStories } = useQuery({
     queryKey: ["recent-stories"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: stories, error } = await supabase
         .from("stories")
-        .select("*, profiles(display_name), comments(count)")
+        .select("*, comments(count)")
         .order("created_at", { ascending: false })
         .limit(5);
       if (error) throw error;
-      return data;
+      
+      // Fetch profiles for each story
+      const userIds = [...new Set(stories.map(s => s.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, display_name")
+        .in("user_id", userIds);
+      
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p.display_name]) || []);
+      return stories.map(s => ({ ...s, author_name: profileMap.get(s.user_id) || "Anonymous" }));
     },
   });
 
