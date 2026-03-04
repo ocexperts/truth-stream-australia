@@ -91,7 +91,7 @@ const Index = () => {
               <StoryCard
                 key={story.id}
                 story={story}
-                authorName={story.profiles?.display_name || "Anonymous"}
+                authorName={story.author_name}
                 commentCount={(story.comments as any)?.[0]?.count || 0}
               />
             ))}
