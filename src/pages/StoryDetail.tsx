@@ -127,6 +127,21 @@ export default function StoryDetailPage() {
     onError: () => toast.error("Failed to add comment"),
   });
 
+  const deleteStory = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("stories").delete().eq("id", id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stories"] });
+      queryClient.invalidateQueries({ queryKey: ["recent-stories"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-pending-stories"] });
+      toast.success("Story deleted");
+      navigate("/stories");
+    },
+    onError: () => toast.error("Failed to delete story"),
+  });
+
   const handleVote = async () => {
     if (!user) return toast.error("Sign in to vote");
     const { error } = await supabase.from("votes").upsert({
