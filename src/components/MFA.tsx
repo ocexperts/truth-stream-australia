@@ -33,9 +33,14 @@ export function EnrollMFA({ onEnrolled }: { onEnrolled: () => void }) {
       return;
     }
 
-    const unverified = totpFactors.filter((f: any) => f.status === "unverified");
-    for (const f of unverified) {
-      await supabase.auth.mfa.unenroll({ factorId: f.id });
+    const unverifiedFactors = totpFactors.filter((f: any) => f.status === "unverified");
+    for (const factor of unverifiedFactors) {
+      const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+      if (unenrollError) {
+        toast.error(`Could not reset previous setup: ${unenrollError.message}`);
+        setLoading(false);
+        return;
+      }
     }
 
     let { data, error } = await supabase.auth.mfa.enroll({
@@ -43,17 +48,38 @@ export function EnrollMFA({ onEnrolled }: { onEnrolled: () => void }) {
       friendlyName: "Authenticator App",
     });
 
-    if (error?.message?.includes('already exists')) {
+    if (error?.message?.includes("already exists")) {
+      const { data: refreshedFactors } = await supabase.auth.mfa.listFactors();
+      const refreshedTotp = refreshedFactors?.totp || [];
+      const refreshedVerified = refreshedTotp.find((f: any) => f.status === "verified");
+
+      if (refreshedVerified) {
+        toast.success("2FA is already enabled for this account.");
+        onEnrolled();
+        setLoading(false);
+        return;
+      }
+
+      for (const factor of refreshedTotp.filter((f: any) => f.status === "unverified")) {
+        const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        if (unenrollError) {
+          toast.error(`Could not reset previous setup: ${unenrollError.message}`);
+          setLoading(false);
+          return;
+        }
+      }
+
       const retry = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: `Authenticator App ${Date.now()}`,
+        friendlyName: `Authenticator App ${new Date().toISOString()}`,
       });
+
       data = retry.data;
       error = retry.error;
     }
 
-    if (error) {
-      toast.error(error.message);
+    if (error || !data?.totp?.qr_code) {
+      toast.error(error?.message || "Failed to start 2FA setup");
       setLoading(false);
       return;
     }
