@@ -8,7 +8,7 @@ import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronUp, MessageSquare } from "lucide-react";
+import { ChevronUp, MessageSquare, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 function OriginalContentToggle({ originalTitle, originalContent, currentTitle }: { originalTitle?: string; originalContent: string; currentTitle: string }) {
