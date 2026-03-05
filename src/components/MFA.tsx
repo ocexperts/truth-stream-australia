@@ -217,7 +217,7 @@ export function MFAChallenge({ onVerified }: { onVerified: () => void }) {
         </p>
         <Input
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
           placeholder="000000"
           maxLength={6}
           className="bg-secondary border-border text-center text-lg tracking-widest mb-4"
