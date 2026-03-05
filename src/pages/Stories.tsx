@@ -1,7 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { StoryCard } from "@/components/StoryCard";
 import { Header } from "@/components/Header";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 export default function StoriesPage() {
   const { data: stories, isLoading } = useQuery({
