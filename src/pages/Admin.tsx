@@ -170,7 +170,7 @@ export default function AdminPage() {
                       <Button
                         variant="hero"
                         size="sm"
-                        onClick={() => saveEdit.mutate({ id: story.id, title: editState.title.trim(), content: editState.content.trim() })}
+                        onClick={() => saveEdit.mutate({ id: story.id, title: editState.title.trim(), content: editState.content.trim(), originalTitle: story.title, originalContent: story.content })}
                         disabled={saveEdit.isPending || !editState.title.trim() || !editState.content.trim()}
                       >
                         Save Changes
