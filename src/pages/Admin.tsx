@@ -266,6 +266,17 @@ export default function AdminPage() {
                           <X className="h-4 w-4 mr-1" />
                           Reject
                         </Button>
+                        {isAdmin && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => deleteStory.mutate(story.id)}
+                            disabled={deleteStory.isPending}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>

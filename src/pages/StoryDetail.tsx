@@ -207,6 +207,20 @@ export default function StoryDetailPage() {
                 <span>·</span>
                 <span>{formatDistanceToNow(new Date(story.created_at), { addSuffix: true })}</span>
               </div>
+              {isAdmin && (
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => deleteStory.mutate()}
+                    disabled={deleteStory.isPending}
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    Delete Story
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
           <div className="border-t border-border pt-6">
