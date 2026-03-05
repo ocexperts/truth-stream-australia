@@ -21,34 +21,42 @@ export default function SubmitStoryPage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [mediaOutlet, setMediaOutlet] = useState("");
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="mx-auto max-w-2xl px-4 py-20 text-center">
-          <h1 className="font-display text-3xl font-bold mb-4">Sign in to share your story</h1>
-          <p className="text-muted-foreground">You must be signed in to submit a story.</p>
-        </main>
-      </div>
-    );
-  }
+  const isGuest = !user;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
+    if (isGuest && (!guestName.trim() || !guestEmail.trim())) return;
 
     setLoading(true);
-    const { error } = await supabase.from("stories").insert({
-      user_id: user.id,
+
+    const insertData: Record<string, unknown> = {
       title: title.trim(),
       content: content.trim(),
       media_outlet: mediaOutlet || null,
-    });
+    };
+
+    if (isGuest) {
+      insertData.status = "pending";
+      insertData.guest_name = guestName.trim();
+      insertData.guest_email = guestEmail.trim();
+      insertData.user_id = null;
+    } else {
+      insertData.user_id = user.id;
+      insertData.status = "approved";
+    }
+
+    const { error } = await supabase.from("stories").insert(insertData as any);
 
     if (error) {
       toast.error("Failed to submit story");
+    } else if (isGuest) {
+      toast.success("Story submitted! It will appear after admin approval.");
+      navigate("/stories");
     } else {
       toast.success("Story published");
       navigate("/stories");
@@ -63,8 +71,45 @@ export default function SubmitStoryPage() {
         <h1 className="mb-2 font-display text-3xl font-black">Share Your Story</h1>
         <p className="mb-8 text-muted-foreground">
           Tell Australia what happened. Your voice matters.
+          {isGuest && (
+            <span className="block mt-1 text-xs text-primary">
+              Submitting as a guest — your story will be reviewed before publishing.
+            </span>
+          )}
         </p>
+
         <form onSubmit={handleSubmit} className="space-y-6">
+          {isGuest && (
+            <div className="space-y-4 rounded border border-border bg-secondary/50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guest Details</p>
+              <div>
+                <Label htmlFor="guestName" className="text-muted-foreground">Your Name</Label>
+                <Input
+                  id="guestName"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  placeholder="How should we credit you?"
+                  className="mt-1 bg-secondary border-border"
+                  maxLength={100}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="guestEmail" className="text-muted-foreground">Email (private)</Label>
+                <Input
+                  id="guestEmail"
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  placeholder="For follow-up only — never shown publicly"
+                  className="mt-1 bg-secondary border-border"
+                  maxLength={255}
+                  required
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <Label className="text-muted-foreground">Media Outlet</Label>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -84,6 +129,7 @@ export default function SubmitStoryPage() {
               ))}
             </div>
           </div>
+
           <div>
             <Label htmlFor="title" className="text-muted-foreground">Title</Label>
             <Input
@@ -96,6 +142,7 @@ export default function SubmitStoryPage() {
               required
             />
           </div>
+
           <div>
             <Label htmlFor="content" className="text-muted-foreground">Your Story</Label>
             <Textarea
@@ -108,8 +155,9 @@ export default function SubmitStoryPage() {
               required
             />
           </div>
+
           <Button type="submit" variant="hero" className="w-full" disabled={loading}>
-            {loading ? "Publishing..." : "Publish Story"}
+            {loading ? "Submitting..." : isGuest ? "Submit for Review" : "Publish Story"}
           </Button>
         </form>
       </main>
