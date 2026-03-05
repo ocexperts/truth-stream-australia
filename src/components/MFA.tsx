@@ -17,22 +17,47 @@ export function EnrollMFA({ onEnrolled }: { onEnrolled: () => void }) {
   const handleEnroll = async () => {
     setLoading(true);
 
-    // Unenroll any existing unverified factors first
-    const { data: factors } = await supabase.auth.mfa.listFactors();
-    const unverified = factors?.totp?.filter((f: any) => f.status === "unverified") || [];
+    const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+    if (factorsError) {
+      toast.error(factorsError.message);
+      setLoading(false);
+      return;
+    }
+
+    const totpFactors = factors?.totp || [];
+    const verifiedFactor = totpFactors.find((f: any) => f.status === "verified");
+    if (verifiedFactor) {
+      toast.success("2FA is already enabled for this account.");
+      onEnrolled();
+      setLoading(false);
+      return;
+    }
+
+    const unverified = totpFactors.filter((f: any) => f.status === "unverified");
     for (const f of unverified) {
       await supabase.auth.mfa.unenroll({ factorId: f.id });
     }
 
-    const { data, error } = await supabase.auth.mfa.enroll({
+    let { data, error } = await supabase.auth.mfa.enroll({
       factorType: "totp",
       friendlyName: "Authenticator App",
     });
+
+    if (error?.message?.includes('already exists')) {
+      const retry = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: `Authenticator App ${Date.now()}`,
+      });
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error) {
       toast.error(error.message);
       setLoading(false);
       return;
     }
+
     setFactorId(data.id);
     setQrCode(data.totp.qr_code);
     setStep("enrolled");
