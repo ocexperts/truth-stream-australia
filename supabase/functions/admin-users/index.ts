@@ -12,7 +12,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify the calling user is an admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -23,9 +22,10 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
 
-    // Client with user's JWT to check role
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!, {
+    // Verify caller
+    const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const { data: { user } } = await userClient.auth.getUser();
@@ -36,8 +36,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check admin role
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Check admin role
     const { data: roles } = await adminClient
       .from("user_roles")
       .select("role")
@@ -51,17 +52,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { action } = await req.json();
+    const body = await req.json();
+    const { action } = body;
 
     if (action === "list_users") {
-      const { data: { users }, error } = await adminClient.auth.admin.listUsers({ perPage: 100 });
+      const { data: { users }, error } = await adminClient.auth.admin.listUsers({ perPage: 200 });
       if (error) throw error;
 
-      // Get all roles
       const { data: allRoles } = await adminClient.from("user_roles").select("*");
-
-      // Get all profiles
       const { data: profiles } = await adminClient.from("profiles").select("*");
+
       const profileMap = new Map(profiles?.map((p: any) => [p.user_id, p]) || []);
       const roleMap = new Map<string, string[]>();
       allRoles?.forEach((r: any) => {
@@ -84,15 +84,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "add_role") {
-      const { user_id, role } = await req.json().catch(() => ({}));
-      // Re-parse since we already consumed body
-    }
-
-    // For add/remove role, parse from the same body
-    const body = JSON.parse(await new Response(req.body).text().catch(() => "{}"));
-
-    if (action === "add_role") {
-      const { user_id: targetId, role } = await req.json();
+      const { user_id: targetId, role } = body;
       const { error } = await adminClient.from("user_roles").insert({ user_id: targetId, role });
       if (error) throw error;
       return new Response(JSON.stringify({ success: true }), {
@@ -101,7 +93,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "remove_role") {
-      const { user_id: targetId, role } = await req.json();
+      const { user_id: targetId, role } = body;
       const { error } = await adminClient.from("user_roles").delete().eq("user_id", targetId).eq("role", role);
       if (error) throw error;
       return new Response(JSON.stringify({ success: true }), {
