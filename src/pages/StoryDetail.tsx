@@ -142,6 +142,18 @@ export default function StoryDetailPage() {
     onError: () => toast.error("Failed to delete story"),
   });
 
+  const deleteComment = useMutation({
+    mutationFn: async (commentId: string) => {
+      const { error } = await supabase.from("comments").delete().eq("id", commentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["comments", id] });
+      toast.success("Comment deleted");
+    },
+    onError: () => toast.error("Failed to delete comment"),
+  });
+
   const handleVote = async () => {
     if (!user) return toast.error("Sign in to vote");
     const { error } = await supabase.from("votes").upsert({
@@ -273,6 +285,15 @@ export default function StoryDetailPage() {
                   <span className="font-medium text-foreground">{c.author_name}</span>
                   <span>·</span>
                   <span>{formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</span>
+                  {(isAdmin || c.user_id === user?.id) && (
+                    <button
+                      onClick={() => deleteComment.mutate(c.id)}
+                      disabled={deleteComment.isPending}
+                      className="ml-auto text-destructive hover:text-destructive/80 transition-colors"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
                 <p className="text-sm text-foreground/80">{c.content}</p>
               </div>
