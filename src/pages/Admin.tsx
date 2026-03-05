@@ -46,7 +46,8 @@ export default function AdminPage() {
 
     // Check MFA status
     supabase.auth.mfa.listFactors().then(({ data }) => {
-      setHasMFA(!!(data?.totp && data.totp.length > 0));
+      const verifiedFactors = data?.totp?.filter((f: any) => f.status === "verified") || [];
+      setHasMFA(verifiedFactors.length > 0);
     });
   }, [user]);
 
