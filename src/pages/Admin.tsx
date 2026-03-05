@@ -10,7 +10,7 @@ import { AdminUsersTab } from "@/components/AdminUsersTab";
 import { EnrollMFA } from "@/components/MFA";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { Check, X, Shield, Pencil, Users, FileText, ShieldCheck } from "lucide-react";
+import { Check, X, Shield, Pencil, Users, FileText, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface EditState {
