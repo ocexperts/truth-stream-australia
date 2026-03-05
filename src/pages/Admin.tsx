@@ -3,16 +3,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { Check, X, Shield } from "lucide-react";
+import { Check, X, Shield, Pencil } from "lucide-react";
 import { useEffect, useState } from "react";
+
+interface EditState {
+  title: string;
+  content: string;
+}
 
 export default function AdminPage() {
   const { user, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingRole, setCheckingRole] = useState(true);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editState, setEditState] = useState<EditState>({ title: "", content: "" });
 
   useEffect(() => {
     if (!user) {
@@ -59,6 +68,27 @@ export default function AdminPage() {
     onError: () => toast.error("Failed to update story"),
   });
 
+  const saveEdit = useMutation({
+    mutationFn: async ({ id, title, content }: { id: string; title: string; content: string }) => {
+      const { error } = await supabase
+        .from("stories")
+        .update({ title, content })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-pending-stories"] });
+      setEditing(null);
+      toast.success("Story updated");
+    },
+    onError: () => toast.error("Failed to save edits"),
+  });
+
+  const startEditing = (story: { id: string; title: string; content: string }) => {
+    setEditing(story.id);
+    setEditState({ title: story.title, content: story.content });
+  };
+
   if (authLoading || checkingRole) {
     return (
       <div className="min-h-screen bg-background">
@@ -92,7 +122,7 @@ export default function AdminPage() {
           Admin — Pending Stories
         </h1>
         <p className="mb-8 text-muted-foreground">
-          Review and approve guest submissions before they go live.
+          Review, edit, and approve guest submissions before they go live.
         </p>
 
         {isLoading ? (
@@ -117,30 +147,72 @@ export default function AdminPage() {
                   <span>·</span>
                   <span>{formatDistanceToNow(new Date(story.created_at), { addSuffix: true })}</span>
                 </div>
-                <h3 className="font-display text-lg font-bold mb-2">{story.title}</h3>
-                <p className="text-sm text-muted-foreground line-clamp-4 mb-4 whitespace-pre-wrap">
-                  {story.content}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="hero"
-                    size="sm"
-                    onClick={() => updateStatus.mutate({ id: story.id, status: "approved" })}
-                    disabled={updateStatus.isPending}
-                  >
-                    <Check className="h-4 w-4 mr-1" />
-                    Approve
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => updateStatus.mutate({ id: story.id, status: "rejected" })}
-                    disabled={updateStatus.isPending}
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Reject
-                  </Button>
-                </div>
+
+                {editing === story.id ? (
+                  <div className="space-y-3 mb-4">
+                    <Input
+                      value={editState.title}
+                      onChange={(e) => setEditState((s) => ({ ...s, title: e.target.value }))}
+                      className="bg-secondary border-border font-display font-bold"
+                    />
+                    <Textarea
+                      value={editState.content}
+                      onChange={(e) => setEditState((s) => ({ ...s, content: e.target.value }))}
+                      className="bg-secondary border-border min-h-[150px]"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        variant="hero"
+                        size="sm"
+                        onClick={() => saveEdit.mutate({ id: story.id, title: editState.title.trim(), content: editState.content.trim() })}
+                        disabled={saveEdit.isPending || !editState.title.trim() || !editState.content.trim()}
+                      >
+                        Save Changes
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setEditing(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <h3 className="font-display text-lg font-bold mb-2">{story.title}</h3>
+                    <p className="text-sm text-muted-foreground line-clamp-4 mb-4 whitespace-pre-wrap">
+                      {story.content}
+                    </p>
+                  </>
+                )}
+
+                {editing !== story.id && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="hero"
+                      size="sm"
+                      onClick={() => updateStatus.mutate({ id: story.id, status: "approved" })}
+                      disabled={updateStatus.isPending}
+                    >
+                      <Check className="h-4 w-4 mr-1" />
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => startEditing(story)}
+                    >
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updateStatus.mutate({ id: story.id, status: "rejected" })}
+                      disabled={updateStatus.isPending}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Reject
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
