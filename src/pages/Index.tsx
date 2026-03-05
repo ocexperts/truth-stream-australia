@@ -10,6 +10,42 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const Index = () => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .then(({ data, error }) => {
+        if (error) {
+          setIsAdmin(false);
+          return;
+        }
+        setIsAdmin((data || []).some((r) => r.role === "admin"));
+      });
+  }, [user]);
+
+  const deleteStory = useMutation({
+    mutationFn: async (storyId: string) => {
+      const { error } = await supabase.from("stories").delete().eq("id", storyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recent-stories"] });
+      queryClient.invalidateQueries({ queryKey: ["stories"] });
+      toast.success("Story deleted");
+    },
+    onError: () => toast.error("Failed to delete story"),
+  });
+
   const { data: recentStories } = useQuery({
     queryKey: ["recent-stories"],
     queryFn: async () => {
