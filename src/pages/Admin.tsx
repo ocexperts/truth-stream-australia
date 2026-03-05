@@ -69,10 +69,16 @@ export default function AdminPage() {
   });
 
   const saveEdit = useMutation({
-    mutationFn: async ({ id, title, content }: { id: string; title: string; content: string }) => {
+    mutationFn: async ({ id, title, content, originalTitle, originalContent }: { id: string; title: string; content: string; originalTitle: string; originalContent: string }) => {
+      const updateData: Record<string, unknown> = { title, content };
+      // Only save originals if content was actually changed
+      if (title !== originalTitle || content !== originalContent) {
+        updateData.original_title = originalTitle;
+        updateData.original_content = originalContent;
+      }
       const { error } = await supabase
         .from("stories")
-        .update({ title, content })
+        .update(updateData as any)
         .eq("id", id);
       if (error) throw error;
     },
@@ -164,7 +170,7 @@ export default function AdminPage() {
                       <Button
                         variant="hero"
                         size="sm"
-                        onClick={() => saveEdit.mutate({ id: story.id, title: editState.title.trim(), content: editState.content.trim() })}
+                        onClick={() => saveEdit.mutate({ id: story.id, title: editState.title.trim(), content: editState.content.trim(), originalTitle: story.title, originalContent: story.content })}
                         disabled={saveEdit.isPending || !editState.title.trim() || !editState.content.trim()}
                       >
                         Save Changes

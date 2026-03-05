@@ -82,6 +82,8 @@ export type Database = {
           guest_name: string | null
           id: string
           media_outlet: string | null
+          original_content: string | null
+          original_title: string | null
           status: string
           title: string
           updated_at: string
@@ -96,6 +98,8 @@ export type Database = {
           guest_name?: string | null
           id?: string
           media_outlet?: string | null
+          original_content?: string | null
+          original_title?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -110,6 +114,8 @@ export type Database = {
           guest_name?: string | null
           id?: string
           media_outlet?: string | null
+          original_content?: string | null
+          original_title?: string | null
           status?: string
           title?: string
           updated_at?: string
