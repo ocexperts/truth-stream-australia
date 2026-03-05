@@ -153,7 +153,7 @@ export function EnrollMFA({ onEnrolled }: { onEnrolled: () => void }) {
           <Input
             id="totp-code"
             value={verifyCode}
-            onChange={(e) => setVerifyCode(e.target.value)}
+            onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
             placeholder="000000"
             maxLength={6}
             className="mt-1 bg-secondary border-border text-center text-lg tracking-widest"
