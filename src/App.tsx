@@ -23,6 +23,7 @@ const App = () => (
           <Route path="/stories" element={<Stories />} />
           <Route path="/submit" element={<SubmitStory />} />
           <Route path="/story/:id" element={<StoryDetail />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

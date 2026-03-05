@@ -26,13 +26,16 @@ export default function StoryDetailPage() {
         .single();
       if (error) throw error;
       
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("user_id", data.user_id)
-        .single();
-      
-      return { ...data, author_name: profile?.display_name || "Anonymous" };
+      let authorName = (data as any).guest_name || "Guest";
+      if (data.user_id) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", data.user_id)
+          .single();
+        authorName = profile?.display_name || "Anonymous";
+      }
+      return { ...data, author_name: authorName };
     },
     enabled: !!id,
   });

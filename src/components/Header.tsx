@@ -24,6 +24,9 @@ export function Header() {
             <Link to="/stories" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Stories
             </Link>
+            <Link to="/submit" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Submit
+            </Link>
             {user ? (
               <div className="flex items-center gap-3">
                 <Link to="/submit">
