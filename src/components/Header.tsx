@@ -1,12 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { AuthModal } from "./AuthModal";
+import { MFAChallenge } from "./MFA";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 
 export function Header() {
   const { user, signOut } = useAuth();
   const [showAuth, setShowAuth] = useState(false);
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const [needsMFA, setNeedsMFA] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setHasAdminAccess(false);
+      return;
+    }
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .then(({ data }) => {
+        const roles = data?.map((r) => r.role) || [];
+        setHasAdminAccess(roles.includes("admin") || roles.includes("editor"));
+      });
+
+    // Check if user has MFA enrolled but not yet verified this session
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
+      if (data && data.nextLevel === "aal2" && data.currentLevel === "aal1") {
+        setNeedsMFA(true);
+      }
+    });
+  }, [user]);
 
   return (
     <>
@@ -27,6 +53,11 @@ export function Header() {
             <Link to="/submit" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Submit
             </Link>
+            {hasAdminAccess && (
+              <Link to="/admin" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Admin
+              </Link>
+            )}
             {user ? (
               <div className="flex items-center gap-3">
                 <Link to="/submit">
@@ -48,6 +79,7 @@ export function Header() {
         </div>
       </header>
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+      {needsMFA && <MFAChallenge onVerified={() => setNeedsMFA(false)} />}
     </>
   );
 }
