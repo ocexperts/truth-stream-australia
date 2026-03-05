@@ -92,6 +92,9 @@ export default function StoriesPage() {
                 story={story}
                 authorName={story.author_name}
                 commentCount={(story.comments as any)?.[0]?.count || 0}
+                showDelete={isAdmin}
+                deleting={deleteStory.isPending}
+                onDelete={(storyId) => deleteStory.mutate(storyId)}
               />
             ))}
           </div>
