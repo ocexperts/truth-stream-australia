@@ -195,7 +195,7 @@ export function MFAChallenge({ onVerified }: { onVerified: () => void }) {
     const { error } = await supabase.auth.mfa.verify({
       factorId: totp.id,
       challengeId: challenge.id,
-      code,
+      code: code.replace(/\D/g, ""),
     });
     if (error) {
       toast.error("Invalid code. Try again.");
