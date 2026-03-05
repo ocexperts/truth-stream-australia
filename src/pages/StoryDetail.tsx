@@ -191,7 +191,7 @@ export default function StoryDetailPage() {
             Comments ({comments?.length || 0})
           </h2>
 
-          {user && (
+          {user ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -210,6 +210,10 @@ export default function StoryDetailPage() {
                 Post Comment
               </Button>
             </form>
+          ) : (
+            <p className="mb-8 text-sm text-muted-foreground">
+              Sign in to leave a comment.
+            </p>
           )}
 
           <div className="space-y-4">
