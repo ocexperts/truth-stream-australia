@@ -82,6 +82,23 @@ export default function AdminPage() {
     onError: () => toast.error("Failed to update story"),
   });
 
+  const deleteStory = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("stories")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-pending-stories"] });
+      queryClient.invalidateQueries({ queryKey: ["stories"] });
+      queryClient.invalidateQueries({ queryKey: ["recent-stories"] });
+      toast.success("Story deleted");
+    },
+    onError: () => toast.error("Failed to delete story"),
+  });
+
   const saveEdit = useMutation({
     mutationFn: async ({ id, title, content, originalTitle, originalContent }: { id: string; title: string; content: string; originalTitle: string; originalContent: string }) => {
       const updateData: Record<string, unknown> = { title, content };
