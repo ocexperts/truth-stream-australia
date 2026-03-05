@@ -1,12 +1,51 @@
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { StoryCard } from "@/components/StoryCard";
 import { ArrowRight } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 const Index = () => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .then(({ data, error }) => {
+        if (error) {
+          setIsAdmin(false);
+          return;
+        }
+        setIsAdmin((data || []).some((r) => r.role === "admin"));
+      });
+  }, [user]);
+
+  const deleteStory = useMutation({
+    mutationFn: async (storyId: string) => {
+      const { error } = await supabase.from("stories").delete().eq("id", storyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recent-stories"] });
+      queryClient.invalidateQueries({ queryKey: ["stories"] });
+      toast.success("Story deleted");
+    },
+    onError: () => toast.error("Failed to delete story"),
+  });
+
   const { data: recentStories } = useQuery({
     queryKey: ["recent-stories"],
     queryFn: async () => {
@@ -93,6 +132,9 @@ const Index = () => {
                 story={story}
                 authorName={story.author_name}
                 commentCount={(story.comments as any)?.[0]?.count || 0}
+                showDelete={isAdmin}
+                deleting={deleteStory.isPending}
+                onDelete={(storyId) => deleteStory.mutate(storyId)}
               />
             ))}
           </div>

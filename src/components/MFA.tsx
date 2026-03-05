@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,9 +32,14 @@ export function EnrollMFA({ onEnrolled }: { onEnrolled: () => void }) {
       return;
     }
 
-    const unverified = totpFactors.filter((f: any) => f.status === "unverified");
-    for (const f of unverified) {
-      await supabase.auth.mfa.unenroll({ factorId: f.id });
+    const unverifiedFactors = totpFactors.filter((f: any) => f.status === "unverified");
+    for (const factor of unverifiedFactors) {
+      const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+      if (unenrollError) {
+        toast.error(`Could not reset previous setup: ${unenrollError.message}`);
+        setLoading(false);
+        return;
+      }
     }
 
     let { data, error } = await supabase.auth.mfa.enroll({
@@ -43,17 +47,38 @@ export function EnrollMFA({ onEnrolled }: { onEnrolled: () => void }) {
       friendlyName: "Authenticator App",
     });
 
-    if (error?.message?.includes('already exists')) {
+    if (error?.message?.includes("already exists")) {
+      const { data: refreshedFactors } = await supabase.auth.mfa.listFactors();
+      const refreshedTotp = refreshedFactors?.totp || [];
+      const refreshedVerified = refreshedTotp.find((f: any) => f.status === "verified");
+
+      if (refreshedVerified) {
+        toast.success("2FA is already enabled for this account.");
+        onEnrolled();
+        setLoading(false);
+        return;
+      }
+
+      for (const factor of refreshedTotp.filter((f: any) => f.status === "unverified")) {
+        const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        if (unenrollError) {
+          toast.error(`Could not reset previous setup: ${unenrollError.message}`);
+          setLoading(false);
+          return;
+        }
+      }
+
       const retry = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: `Authenticator App ${Date.now()}`,
+        friendlyName: `Authenticator App ${new Date().toISOString()}`,
       });
+
       data = retry.data;
       error = retry.error;
     }
 
-    if (error) {
-      toast.error(error.message);
+    if (error || !data?.totp?.qr_code) {
+      toast.error(error?.message || "Failed to start 2FA setup");
       setLoading(false);
       return;
     }
@@ -127,7 +152,7 @@ export function EnrollMFA({ onEnrolled }: { onEnrolled: () => void }) {
           <Input
             id="totp-code"
             value={verifyCode}
-            onChange={(e) => setVerifyCode(e.target.value)}
+            onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
             placeholder="000000"
             maxLength={6}
             className="mt-1 bg-secondary border-border text-center text-lg tracking-widest"
@@ -169,7 +194,7 @@ export function MFAChallenge({ onVerified }: { onVerified: () => void }) {
     const { error } = await supabase.auth.mfa.verify({
       factorId: totp.id,
       challengeId: challenge.id,
-      code,
+      code: code.replace(/\D/g, ""),
     });
     if (error) {
       toast.error("Invalid code. Try again.");
@@ -191,7 +216,7 @@ export function MFAChallenge({ onVerified }: { onVerified: () => void }) {
         </p>
         <Input
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
           placeholder="000000"
           maxLength={6}
           className="bg-secondary border-border text-center text-lg tracking-widest mb-4"

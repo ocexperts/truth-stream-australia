@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,7 +8,7 @@ import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronUp, MessageSquare } from "lucide-react";
+import { ChevronUp, MessageSquare, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 function OriginalContentToggle({ originalTitle, originalContent, currentTitle }: { originalTitle?: string; originalContent: string; currentTitle: string }) {
@@ -41,8 +41,29 @@ function OriginalContentToggle({ originalTitle, originalContent, currentTitle }:
 export default function StoryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [comment, setComment] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .then(({ data, error }) => {
+        if (error) {
+          setIsAdmin(false);
+          return;
+        }
+        setIsAdmin((data || []).some((r) => r.role === "admin"));
+      });
+  }, [user]);
 
   const { data: story, isLoading } = useQuery({
     queryKey: ["story", id],
@@ -104,6 +125,21 @@ export default function StoryDetailPage() {
       toast.success("Comment added");
     },
     onError: () => toast.error("Failed to add comment"),
+  });
+
+  const deleteStory = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("stories").delete().eq("id", id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stories"] });
+      queryClient.invalidateQueries({ queryKey: ["recent-stories"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-pending-stories"] });
+      toast.success("Story deleted");
+      navigate("/stories");
+    },
+    onError: () => toast.error("Failed to delete story"),
   });
 
   const handleVote = async () => {
@@ -171,6 +207,20 @@ export default function StoryDetailPage() {
                 <span>·</span>
                 <span>{formatDistanceToNow(new Date(story.created_at), { addSuffix: true })}</span>
               </div>
+              {isAdmin && (
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => deleteStory.mutate()}
+                    disabled={deleteStory.isPending}
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    Delete Story
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
           <div className="border-t border-border pt-6">

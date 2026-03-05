@@ -10,7 +10,7 @@ import { AdminUsersTab } from "@/components/AdminUsersTab";
 import { EnrollMFA } from "@/components/MFA";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { Check, X, Shield, Pencil, Users, FileText, ShieldCheck } from "lucide-react";
+import { Check, X, Shield, Pencil, Users, FileText, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface EditState {
@@ -80,6 +80,23 @@ export default function AdminPage() {
       toast.success(status === "approved" ? "Story approved and published" : "Story rejected");
     },
     onError: () => toast.error("Failed to update story"),
+  });
+
+  const deleteStory = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("stories")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-pending-stories"] });
+      queryClient.invalidateQueries({ queryKey: ["stories"] });
+      queryClient.invalidateQueries({ queryKey: ["recent-stories"] });
+      toast.success("Story deleted");
+    },
+    onError: () => toast.error("Failed to delete story"),
   });
 
   const saveEdit = useMutation({
@@ -249,6 +266,17 @@ export default function AdminPage() {
                           <X className="h-4 w-4 mr-1" />
                           Reject
                         </Button>
+                        {isAdmin && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => deleteStory.mutate(story.id)}
+                            disabled={deleteStory.isPending}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
