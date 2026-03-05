@@ -41,8 +41,29 @@ function OriginalContentToggle({ originalTitle, originalContent, currentTitle }:
 export default function StoryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [comment, setComment] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .then(({ data, error }) => {
+        if (error) {
+          setIsAdmin(false);
+          return;
+        }
+        setIsAdmin((data || []).some((r) => r.role === "admin"));
+      });
+  }, [user]);
 
   const { data: story, isLoading } = useQuery({
     queryKey: ["story", id],
