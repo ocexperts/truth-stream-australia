@@ -11,6 +11,33 @@ import { formatDistanceToNow } from "date-fns";
 import { ChevronUp, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 
+function OriginalContentToggle({ originalTitle, originalContent, currentTitle }: { originalTitle?: string; originalContent: string; currentTitle: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-4 border border-border rounded">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <span>This story was edited by a moderator — view original</span>
+        <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="border-t border-border px-4 py-4 bg-secondary/30">
+          {originalTitle && originalTitle !== currentTitle && (
+            <h4 className="font-display font-bold mb-2 text-sm text-muted-foreground">
+              Original title: {originalTitle}
+            </h4>
+          )}
+          <p className="whitespace-pre-wrap text-sm text-muted-foreground leading-relaxed">
+            {originalContent}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StoryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
