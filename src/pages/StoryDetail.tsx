@@ -142,6 +142,18 @@ export default function StoryDetailPage() {
     onError: () => toast.error("Failed to delete story"),
   });
 
+  const deleteComment = useMutation({
+    mutationFn: async (commentId: string) => {
+      const { error } = await supabase.from("comments").delete().eq("id", commentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["comments", id] });
+      toast.success("Comment deleted");
+    },
+    onError: () => toast.error("Failed to delete comment"),
+  });
+
   const handleVote = async () => {
     if (!user) return toast.error("Sign in to vote");
     const { error } = await supabase.from("votes").upsert({
