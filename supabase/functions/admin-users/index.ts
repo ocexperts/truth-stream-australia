@@ -20,22 +20,31 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Use the apikey header as fallback for the service role key
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
+    if (!serviceRoleKey) {
+      console.error("Available env vars:", Object.keys(Deno.env.toObject()).filter(k => k.startsWith("SUPA")));
+      return new Response(JSON.stringify({ error: "Server misconfigured: missing service role key" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     // Verify the caller's JWT
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await adminClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await adminClient.auth.getUser(token);
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const callerUserId = claimsData.claims.sub;
+    const callerUserId = user.id;
 
     // Check admin role
     const { data: roles } = await adminClient
