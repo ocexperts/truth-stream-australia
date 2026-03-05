@@ -57,14 +57,21 @@ const Index = () => {
       if (error) throw error;
       
       // Fetch profiles for each story
-      const userIds = [...new Set(stories.map(s => s.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, display_name")
-        .in("user_id", userIds);
-      
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p.display_name]) || []);
-      return stories.map(s => ({ ...s, author_name: profileMap.get(s.user_id) || "Anonymous" }));
+      const userIds = [...new Set(stories.filter(s => s.user_id).map(s => s.user_id!))];
+      let profileMap = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, display_name")
+          .in("user_id", userIds);
+        profileMap = new Map(profiles?.map(p => [p.user_id, p.display_name]) || []);
+      }
+      return stories.map(s => ({
+        ...s,
+        author_name: s.user_id
+          ? profileMap.get(s.user_id) || "Anonymous"
+          : (s as any).guest_name || "Guest",
+      }));
     },
   });
 

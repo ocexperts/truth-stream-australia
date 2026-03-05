@@ -273,6 +273,15 @@ export default function StoryDetailPage() {
                   <span className="font-medium text-foreground">{c.author_name}</span>
                   <span>·</span>
                   <span>{formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</span>
+                  {(isAdmin || c.user_id === user?.id) && (
+                    <button
+                      onClick={() => deleteComment.mutate(c.id)}
+                      disabled={deleteComment.isPending}
+                      className="ml-auto text-destructive hover:text-destructive/80 transition-colors"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
                 <p className="text-sm text-foreground/80">{c.content}</p>
               </div>
