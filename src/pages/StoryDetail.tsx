@@ -148,6 +148,13 @@ export default function StoryDetailPage() {
           </div>
           <div className="border-t border-border pt-6">
             <p className="whitespace-pre-wrap text-foreground/90 leading-relaxed">{story.content}</p>
+            {(story as any).original_content && (story as any).original_content !== story.content && (
+              <OriginalContentToggle
+                originalTitle={(story as any).original_title}
+                originalContent={(story as any).original_content}
+                currentTitle={story.title}
+              />
+            )}
           </div>
         </article>
 
