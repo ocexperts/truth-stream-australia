@@ -22,16 +22,22 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success("Check your email to confirm your account");
+        toast.success("Account created successfully!");
         onClose();
+        window.location.reload();
       }
     } else {
-      const { error } = await signIn(email, password);
-      if (error) {
-        toast.error(error.message);
+      const result = await signIn(email, password);
+      if (result.error) {
+        toast.error(result.error.message);
+      } else if (result.mfa_required) {
+        toast.info("Enter your 2FA code");
+        onClose();
+        // MFA flow handled by parent
       } else {
         toast.success("Signed in successfully");
         onClose();
+        window.location.reload();
       }
     }
     setLoading(false);

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { StoryCard } from "@/components/StoryCard";
@@ -19,25 +19,13 @@ const Index = () => {
       setIsAdmin(false);
       return;
     }
-
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .then(({ data, error }) => {
-        if (error) {
-          setIsAdmin(false);
-          return;
-        }
-        setIsAdmin((data || []).some((r) => r.role === "admin"));
-      });
+    api.getMyRoles().then((roles: string[]) => {
+      setIsAdmin(roles.includes("admin"));
+    }).catch(() => setIsAdmin(false));
   }, [user]);
 
   const deleteStory = useMutation({
-    mutationFn: async (storyId: string) => {
-      const { error } = await supabase.from("stories").delete().eq("id", storyId);
-      if (error) throw error;
-    },
+    mutationFn: (storyId: string) => api.deleteStory(storyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["recent-stories"] });
       queryClient.invalidateQueries({ queryKey: ["stories"] });
@@ -48,31 +36,7 @@ const Index = () => {
 
   const { data: recentStories } = useQuery({
     queryKey: ["recent-stories"],
-    queryFn: async () => {
-      const { data: stories, error } = await supabase
-        .from("stories")
-        .select("*, comments(count)")
-        .order("created_at", { ascending: false })
-        .limit(5);
-      if (error) throw error;
-      
-      // Fetch profiles for each story
-      const userIds = [...new Set(stories.filter(s => s.user_id).map(s => s.user_id!))];
-      let profileMap = new Map<string, string>();
-      if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name")
-          .in("user_id", userIds);
-        profileMap = new Map(profiles?.map(p => [p.user_id, p.display_name]) || []);
-      }
-      return stories.map(s => ({
-        ...s,
-        author_name: s.user_id
-          ? profileMap.get(s.user_id) || "Anonymous"
-          : (s as any).guest_name || "Guest",
-      }));
-    },
+    queryFn: () => api.getRecentStories(),
   });
 
   return (
@@ -106,7 +70,6 @@ const Index = () => {
               </Link>
             </div>
           </div>
-          {/* Background accent */}
           <div className="absolute -right-20 top-1/2 -translate-y-1/2 h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
         </div>
       </section>
@@ -133,12 +96,12 @@ const Index = () => {
         </div>
         {recentStories && recentStories.length > 0 ? (
           <div className="space-y-3">
-            {recentStories.map((story) => (
+            {recentStories.map((story: any) => (
               <StoryCard
                 key={story.id}
                 story={story}
                 authorName={story.author_name}
-                commentCount={(story.comments as any)?.[0]?.count || 0}
+                commentCount={story.comment_count || 0}
                 showDelete={isAdmin}
                 deleting={deleteStory.isPending}
                 onDelete={(storyId) => deleteStory.mutate(storyId)}

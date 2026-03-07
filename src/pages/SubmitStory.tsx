@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,32 +34,22 @@ export default function SubmitStoryPage() {
 
     setLoading(true);
 
-    const insertData: Record<string, unknown> = {
-      title: title.trim(),
-      content: content.trim(),
-      media_outlet: mediaOutlet || null,
-    };
+    try {
+      await api.createStory({
+        title: title.trim(),
+        content: content.trim(),
+        media_outlet: mediaOutlet || null,
+        ...(isGuest ? { guest_name: guestName.trim(), guest_email: guestEmail.trim() } : {}),
+      });
 
-    if (isGuest) {
-      insertData.status = "pending";
-      insertData.guest_name = guestName.trim();
-      insertData.guest_email = guestEmail.trim();
-      insertData.user_id = null;
-    } else {
-      insertData.user_id = user.id;
-      insertData.status = "approved";
-    }
-
-    const { error } = await supabase.from("stories").insert(insertData as any);
-
-    if (error) {
+      if (isGuest) {
+        toast.success("Story submitted! It will appear after admin approval.");
+      } else {
+        toast.success("Story published");
+      }
+      navigate("/stories");
+    } catch {
       toast.error("Failed to submit story");
-    } else if (isGuest) {
-      toast.success("Story submitted! It will appear after admin approval.");
-      navigate("/stories");
-    } else {
-      toast.success("Story published");
-      navigate("/stories");
     }
     setLoading(false);
   };
@@ -84,28 +74,11 @@ export default function SubmitStoryPage() {
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Guest Details</p>
               <div>
                 <Label htmlFor="guestName" className="text-muted-foreground">Your Name</Label>
-                <Input
-                  id="guestName"
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  placeholder="How should we credit you?"
-                  className="mt-1 bg-secondary border-border"
-                  maxLength={100}
-                  required
-                />
+                <Input id="guestName" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="How should we credit you?" className="mt-1 bg-secondary border-border" maxLength={100} required />
               </div>
               <div>
                 <Label htmlFor="guestEmail" className="text-muted-foreground">Email (private)</Label>
-                <Input
-                  id="guestEmail"
-                  type="email"
-                  value={guestEmail}
-                  onChange={(e) => setGuestEmail(e.target.value)}
-                  placeholder="For follow-up only — never shown publicly"
-                  className="mt-1 bg-secondary border-border"
-                  maxLength={255}
-                  required
-                />
+                <Input id="guestEmail" type="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} placeholder="For follow-up only — never shown publicly" className="mt-1 bg-secondary border-border" maxLength={255} required />
               </div>
             </div>
           )}
@@ -132,28 +105,12 @@ export default function SubmitStoryPage() {
 
           <div>
             <Label htmlFor="title" className="text-muted-foreground">Title</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="A concise headline for your experience"
-              className="mt-1 bg-secondary border-border"
-              maxLength={200}
-              required
-            />
+            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="A concise headline for your experience" className="mt-1 bg-secondary border-border" maxLength={200} required />
           </div>
 
           <div>
             <Label htmlFor="content" className="text-muted-foreground">Your Story</Label>
-            <Textarea
-              id="content"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="What happened? How were you treated? Be specific..."
-              className="mt-1 min-h-[200px] bg-secondary border-border"
-              maxLength={5000}
-              required
-            />
+            <Textarea id="content" value={content} onChange={(e) => setContent(e.target.value)} placeholder="What happened? How were you treated? Be specific..." className="mt-1 min-h-[200px] bg-secondary border-border" maxLength={5000} required />
           </div>
 
           <Button type="submit" variant="hero" className="w-full" disabled={loading}>
