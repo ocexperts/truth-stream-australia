@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -51,74 +51,25 @@ export default function StoryDetailPage() {
       setIsAdmin(false);
       return;
     }
-
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .then(({ data, error }) => {
-        if (error) {
-          setIsAdmin(false);
-          return;
-        }
-        setIsAdmin((data || []).some((r) => r.role === "admin"));
-      });
+    api.getMyRoles().then((roles: string[]) => {
+      setIsAdmin(roles.includes("admin"));
+    }).catch(() => setIsAdmin(false));
   }, [user]);
 
   const { data: story, isLoading } = useQuery({
     queryKey: ["story", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stories")
-        .select("*")
-        .eq("id", id!)
-        .single();
-      if (error) throw error;
-      
-      let authorName = (data as any).guest_name || "Guest";
-      if (data.user_id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("user_id", data.user_id)
-          .single();
-        authorName = profile?.display_name || "Anonymous";
-      }
-      return { ...data, author_name: authorName };
-    },
+    queryFn: () => api.getStory(id!),
     enabled: !!id,
   });
 
   const { data: comments } = useQuery({
     queryKey: ["comments", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("comments")
-        .select("*")
-        .eq("story_id", id!)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-
-      const userIds = [...new Set(data.map(c => c.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, display_name")
-        .in("user_id", userIds);
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p.display_name]) || []);
-      return data.map(c => ({ ...c, author_name: profileMap.get(c.user_id) || "Anonymous" }));
-    },
+    queryFn: () => api.getComments(id!),
     enabled: !!id,
   });
 
   const addComment = useMutation({
-    mutationFn: async (content: string) => {
-      const { error } = await supabase.from("comments").insert({
-        story_id: id!,
-        user_id: user!.id,
-        content,
-      });
-      if (error) throw error;
-    },
+    mutationFn: (content: string) => api.createComment(id!, content),
     onSuccess: () => {
       setComment("");
       queryClient.invalidateQueries({ queryKey: ["comments", id] });
@@ -128,14 +79,10 @@ export default function StoryDetailPage() {
   });
 
   const deleteStory = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("stories").delete().eq("id", id!);
-      if (error) throw error;
-    },
+    mutationFn: () => api.deleteStory(id!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stories"] });
       queryClient.invalidateQueries({ queryKey: ["recent-stories"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-pending-stories"] });
       toast.success("Story deleted");
       navigate("/stories");
     },
@@ -143,10 +90,7 @@ export default function StoryDetailPage() {
   });
 
   const deleteComment = useMutation({
-    mutationFn: async (commentId: string) => {
-      const { error } = await supabase.from("comments").delete().eq("id", commentId);
-      if (error) throw error;
-    },
+    mutationFn: (commentId: string) => api.deleteComment(commentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["comments", id] });
       toast.success("Comment deleted");
@@ -156,18 +100,11 @@ export default function StoryDetailPage() {
 
   const handleVote = async () => {
     if (!user) return toast.error("Sign in to vote");
-    const { error } = await supabase.from("votes").upsert({
-      user_id: user.id,
-      story_id: id!,
-      vote_type: 1,
-    });
-    if (!error) {
-      const { count } = await supabase
-        .from("votes")
-        .select("*", { count: "exact", head: true })
-        .eq("story_id", id!);
-      await supabase.from("stories").update({ upvotes: count || 0 }).eq("id", id!);
+    try {
+      await api.vote(id!);
       queryClient.invalidateQueries({ queryKey: ["story", id] });
+    } catch {
+      toast.error("Failed to vote");
     }
   };
 
@@ -237,10 +174,10 @@ export default function StoryDetailPage() {
           </div>
           <div className="border-t border-border pt-6">
             <p className="whitespace-pre-wrap text-foreground/90 leading-relaxed">{story.content}</p>
-            {(story as any).original_content && (story as any).original_content !== story.content && (
+            {story.original_content && story.original_content !== story.content && (
               <OriginalContentToggle
-                originalTitle={(story as any).original_title}
-                originalContent={(story as any).original_content}
+                originalTitle={story.original_title}
+                originalContent={story.original_content}
                 currentTitle={story.title}
               />
             )}
@@ -279,7 +216,7 @@ export default function StoryDetailPage() {
           )}
 
           <div className="space-y-4">
-            {comments?.map((c) => (
+            {comments?.map((c: any) => (
               <div key={c.id} className="border-l-2 border-border pl-4 py-2">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                   <span className="font-medium text-foreground">{c.author_name}</span>

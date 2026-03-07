@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Shield, UserPlus, UserMinus } from "lucide-react";
+import { UserPlus, UserMinus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface UserRow {
@@ -21,26 +21,13 @@ export function AdminUsersTab() {
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["admin-users"],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("admin-users", {
-        body: { action: "list_users" },
-      });
-      if (error) throw error;
-      return data as UserRow[];
-    },
+    queryFn: () => api.listUsers() as Promise<UserRow[]>,
   });
 
   const toggleRole = useMutation({
     mutationFn: async ({ userId, role, add }: { userId: string; role: string; add: boolean }) => {
-      const { data, error } = await supabase.functions.invoke("admin-users", {
-        body: {
-          action: add ? "add_role" : "remove_role",
-          user_id: userId,
-          role,
-        },
-      });
-      if (error) throw error;
-      return data;
+      if (add) return api.addRole(userId, role);
+      return api.removeRole(userId, role);
     },
     onSuccess: (_, { role, add }) => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });

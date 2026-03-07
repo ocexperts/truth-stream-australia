@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -33,48 +33,27 @@ export default function AdminPage() {
       setCheckingRole(false);
       return;
     }
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .then(({ data }) => {
-        const roles = data?.map((r) => r.role) || [];
-        setIsAdmin(roles.includes("admin"));
-        setIsEditor(roles.includes("editor"));
-        setCheckingRole(false);
-      });
+    api.getMyRoles().then((roles: string[]) => {
+      setIsAdmin(roles.includes("admin"));
+      setIsEditor(roles.includes("editor"));
+      setCheckingRole(false);
+    }).catch(() => setCheckingRole(false));
 
-    // Check MFA status
-    supabase.auth.mfa.listFactors().then(({ data }) => {
-      const verifiedFactors = data?.totp?.filter((f: any) => f.status === "verified") || [];
-      setHasMFA(verifiedFactors.length > 0);
-    });
+    api.mfaStatus().then((data) => {
+      setHasMFA(data.enabled);
+    }).catch(() => setHasMFA(false));
   }, [user]);
 
   const hasAccess = isAdmin || isEditor;
 
   const { data: pendingStories, isLoading } = useQuery({
     queryKey: ["admin-pending-stories"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stories")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => api.getPendingStories(),
     enabled: hasAccess,
   });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from("stories")
-        .update({ status })
-        .eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: ({ id, status }: { id: string; status: string }) => api.updateStory(id, { status }),
     onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ["admin-pending-stories"] });
       toast.success(status === "approved" ? "Story approved and published" : "Story rejected");
@@ -83,13 +62,7 @@ export default function AdminPage() {
   });
 
   const deleteStory = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("stories")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-    },
+    mutationFn: (id: string) => api.deleteStory(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-pending-stories"] });
       queryClient.invalidateQueries({ queryKey: ["stories"] });
@@ -100,17 +73,13 @@ export default function AdminPage() {
   });
 
   const saveEdit = useMutation({
-    mutationFn: async ({ id, title, content, originalTitle, originalContent }: { id: string; title: string; content: string; originalTitle: string; originalContent: string }) => {
-      const updateData: Record<string, unknown> = { title, content };
+    mutationFn: ({ id, title, content, originalTitle, originalContent }: { id: string; title: string; content: string; originalTitle: string; originalContent: string }) => {
+      const updateData: Record<string, string> = { title, content };
       if (title !== originalTitle || content !== originalContent) {
         updateData.original_title = originalTitle;
         updateData.original_content = originalContent;
       }
-      const { error } = await supabase
-        .from("stories")
-        .update(updateData as any)
-        .eq("id", id);
-      if (error) throw error;
+      return api.updateStory(id, updateData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-pending-stories"] });
@@ -188,7 +157,7 @@ export default function AdminPage() {
               </div>
             ) : pendingStories && pendingStories.length > 0 ? (
               <div className="space-y-4">
-                {pendingStories.map((story) => (
+                {pendingStories.map((story: any) => (
                   <div key={story.id} className="border border-border bg-card p-6">
                     <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
                       {story.media_outlet && (
@@ -197,7 +166,7 @@ export default function AdminPage() {
                         </span>
                       )}
                       <span>
-                        Guest: {(story as any).guest_name || "Unknown"} ({(story as any).guest_email || "no email"})
+                        Guest: {story.guest_name || "Unknown"} ({story.guest_email || "no email"})
                       </span>
                       <span>·</span>
                       <span>{formatDistanceToNow(new Date(story.created_at), { addSuffix: true })}</span>
@@ -240,41 +209,18 @@ export default function AdminPage() {
 
                     {editing !== story.id && (
                       <div className="flex gap-2">
-                        <Button
-                          variant="hero"
-                          size="sm"
-                          onClick={() => updateStatus.mutate({ id: story.id, status: "approved" })}
-                          disabled={updateStatus.isPending}
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          Approve
+                        <Button variant="hero" size="sm" onClick={() => updateStatus.mutate({ id: story.id, status: "approved" })} disabled={updateStatus.isPending}>
+                          <Check className="h-4 w-4 mr-1" /> Approve
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => startEditing(story)}
-                        >
-                          <Pencil className="h-4 w-4 mr-1" />
-                          Edit
+                        <Button variant="outline" size="sm" onClick={() => startEditing(story)}>
+                          <Pencil className="h-4 w-4 mr-1" /> Edit
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateStatus.mutate({ id: story.id, status: "rejected" })}
-                          disabled={updateStatus.isPending}
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Reject
+                        <Button variant="outline" size="sm" onClick={() => updateStatus.mutate({ id: story.id, status: "rejected" })} disabled={updateStatus.isPending}>
+                          <X className="h-4 w-4 mr-1" /> Reject
                         </Button>
                         {isAdmin && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => deleteStory.mutate(story.id)}
-                            disabled={deleteStory.isPending}
-                          >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Delete
+                          <Button variant="destructive" size="sm" onClick={() => deleteStory.mutate(story.id)} disabled={deleteStory.isPending}>
+                            <Trash2 className="h-4 w-4 mr-1" /> Delete
                           </Button>
                         )}
                       </div>

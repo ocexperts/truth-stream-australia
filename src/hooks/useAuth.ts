@@ -1,43 +1,72 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { Session, User } from "@supabase/supabase-js";
+import { useEffect, useState, useCallback } from "react";
+import { api } from "@/lib/api";
+
+interface User {
+  id: string;
+  email: string;
+  display_name?: string;
+}
 
 export function useAuth() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(api.getUser());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    const token = api.getToken();
+    if (!token) {
       setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+      return;
+    }
+    api.getMe()
+      .then((u) => {
+        api.setUser(u);
+        setUser(u);
+      })
+      .catch(() => {
+        api.setToken(null);
+        api.setUser(null);
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const signUp = async (email: string, password: string, displayName: string) => {
-    return supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { display_name: displayName } },
-    });
-  };
+  const signUp = useCallback(async (email: string, password: string, displayName: string) => {
+    try {
+      const data = await api.signUp(email, password, displayName);
+      setUser(data.user);
+      return { error: null, data };
+    } catch (err: any) {
+      return { error: { message: err.message }, data: null };
+    }
+  }, []);
 
-  const signIn = async (email: string, password: string) => {
-    return supabase.auth.signInWithPassword({ email, password });
-  };
+  const signIn = useCallback(async (email: string, password: string) => {
+    try {
+      const data = await api.signIn(email, password);
+      if (data.mfa_required) {
+        return { error: null, data, mfa_required: true };
+      }
+      setUser(data.user);
+      return { error: null, data };
+    } catch (err: any) {
+      return { error: { message: err.message }, data: null };
+    }
+  }, []);
 
-  const signOut = async () => {
-    return supabase.auth.signOut();
-  };
+  const signOut = useCallback(async () => {
+    await api.signOut();
+    setUser(null);
+  }, []);
 
-  return { session, user, loading, signUp, signIn, signOut };
+  const refreshUser = useCallback(async () => {
+    try {
+      const u = await api.getMe();
+      api.setUser(u);
+      setUser(u);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  return { user, loading, signUp, signIn, signOut, refreshUser };
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { StoryCard } from "@/components/StoryCard";
 import { Header } from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,25 +16,13 @@ export default function StoriesPage() {
       setIsAdmin(false);
       return;
     }
-
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .then(({ data, error }) => {
-        if (error) {
-          setIsAdmin(false);
-          return;
-        }
-        setIsAdmin((data || []).some((r) => r.role === "admin"));
-      });
+    api.getMyRoles().then((roles: string[]) => {
+      setIsAdmin(roles.includes("admin"));
+    }).catch(() => setIsAdmin(false));
   }, [user]);
 
   const deleteStory = useMutation({
-    mutationFn: async (storyId: string) => {
-      const { error } = await supabase.from("stories").delete().eq("id", storyId);
-      if (error) throw error;
-    },
+    mutationFn: (storyId: string) => api.deleteStory(storyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stories"] });
       queryClient.invalidateQueries({ queryKey: ["recent-stories"] });
@@ -45,29 +33,7 @@ export default function StoriesPage() {
 
   const { data: stories, isLoading } = useQuery({
     queryKey: ["stories"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stories")
-        .select("*, comments(count)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-
-      const userIds = [...new Set(data.filter(s => s.user_id).map(s => s.user_id))];
-      let profileMap = new Map<string, string>();
-      if (userIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, display_name")
-          .in("user_id", userIds);
-        profileMap = new Map(profiles?.map(p => [p.user_id, p.display_name]) || []);
-      }
-      return data.map(s => ({
-        ...s,
-        author_name: s.user_id
-          ? profileMap.get(s.user_id) || "Anonymous"
-          : (s as any).guest_name || "Guest",
-      }));
-    },
+    queryFn: () => api.getStories(),
   });
 
   return (
@@ -86,12 +52,12 @@ export default function StoriesPage() {
           </div>
         ) : stories && stories.length > 0 ? (
           <div className="space-y-4">
-            {stories.map((story) => (
+            {stories.map((story: any) => (
               <StoryCard
                 key={story.id}
                 story={story}
                 authorName={story.author_name}
-                commentCount={(story.comments as any)?.[0]?.count || 0}
+                commentCount={story.comment_count || 0}
                 showDelete={isAdmin}
                 deleting={deleteStory.isPending}
                 onDelete={(storyId) => deleteStory.mutate(storyId)}

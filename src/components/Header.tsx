@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { AuthModal } from "./AuthModal";
 import { MFAChallenge } from "./MFA";
 import { Button } from "@/components/ui/button";
@@ -17,21 +17,9 @@ export function Header() {
       setHasAdminAccess(false);
       return;
     }
-    supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .then(({ data }) => {
-        const roles = data?.map((r) => r.role) || [];
-        setHasAdminAccess(roles.includes("admin") || roles.includes("editor"));
-      });
-
-    // Check if user has MFA enrolled but not yet verified this session
-    supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
-      if (data && data.nextLevel === "aal2" && data.currentLevel === "aal1") {
-        setNeedsMFA(true);
-      }
-    });
+    api.getMyRoles().then((roles: string[]) => {
+      setHasAdminAccess(roles.includes("admin") || roles.includes("editor"));
+    }).catch(() => setHasAdminAccess(false));
   }, [user]);
 
   return (

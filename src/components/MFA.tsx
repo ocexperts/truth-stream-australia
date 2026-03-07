@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { ShieldCheck, Loader2 } from "lucide-react";
 
 export function EnrollMFA({ onEnrolled }: { onEnrolled: () => void }) {
-  const [factorId, setFactorId] = useState("");
   const [qrCode, setQrCode] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,104 +14,25 @@ export function EnrollMFA({ onEnrolled }: { onEnrolled: () => void }) {
 
   const handleEnroll = async () => {
     setLoading(true);
-
-    const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
-    if (factorsError) {
-      toast.error(factorsError.message);
-      setLoading(false);
-      return;
+    try {
+      const data = await api.mfaEnroll();
+      setQrCode(data.qr_code);
+      setStep("enrolled");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to start 2FA setup");
     }
-
-    const totpFactors = factors?.totp || [];
-    const verifiedFactor = totpFactors.find((f: any) => f.status === "verified");
-    if (verifiedFactor) {
-      toast.success("2FA is already enabled for this account.");
-      onEnrolled();
-      setLoading(false);
-      return;
-    }
-
-    const unverifiedFactors = totpFactors.filter((f: any) => f.status === "unverified");
-    for (const factor of unverifiedFactors) {
-      const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
-      if (unenrollError) {
-        toast.error(`Could not reset previous setup: ${unenrollError.message}`);
-        setLoading(false);
-        return;
-      }
-    }
-
-    let { data, error } = await supabase.auth.mfa.enroll({
-      factorType: "totp",
-      friendlyName: "Authenticator App",
-    });
-
-    if (error?.message?.includes("already exists")) {
-      const { data: refreshedFactors } = await supabase.auth.mfa.listFactors();
-      const refreshedTotp = refreshedFactors?.totp || [];
-      const refreshedVerified = refreshedTotp.find((f: any) => f.status === "verified");
-
-      if (refreshedVerified) {
-        toast.success("2FA is already enabled for this account.");
-        onEnrolled();
-        setLoading(false);
-        return;
-      }
-
-      for (const factor of refreshedTotp.filter((f: any) => f.status === "unverified")) {
-        const { error: unenrollError } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
-        if (unenrollError) {
-          toast.error(`Could not reset previous setup: ${unenrollError.message}`);
-          setLoading(false);
-          return;
-        }
-      }
-
-      const retry = await supabase.auth.mfa.enroll({
-        factorType: "totp",
-        friendlyName: `Authenticator App ${new Date().toISOString()}`,
-      });
-
-      data = retry.data;
-      error = retry.error;
-    }
-
-    if (error || !data?.totp?.qr_code) {
-      toast.error(error?.message || "Failed to start 2FA setup");
-      setLoading(false);
-      return;
-    }
-
-    setFactorId(data.id);
-    setQrCode(data.totp.qr_code);
-    setStep("enrolled");
     setLoading(false);
   };
 
   const handleVerify = async () => {
     setLoading(true);
-    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
-      factorId,
-    });
-    if (challengeError) {
-      toast.error(challengeError.message);
-      setLoading(false);
-      return;
+    try {
+      await api.mfaVerify(verifyCode);
+      toast.success("2FA enabled successfully!");
+      onEnrolled();
+    } catch (err: any) {
+      toast.error(err.message || "Invalid code");
     }
-
-    const { error: verifyError } = await supabase.auth.mfa.verify({
-      factorId,
-      challengeId: challenge.id,
-      code: verifyCode,
-    });
-    if (verifyError) {
-      toast.error(verifyError.message);
-      setLoading(false);
-      return;
-    }
-
-    toast.success("2FA enabled successfully!");
-    onEnrolled();
     setLoading(false);
   };
 
@@ -141,7 +61,7 @@ export function EnrollMFA({ onEnrolled }: { onEnrolled: () => void }) {
         <h3 className="font-display font-bold">Scan QR Code</h3>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code.
+        Scan this QR code with your authenticator app, then enter the 6-digit code.
       </p>
       <div className="flex flex-col items-center gap-4 mb-4">
         <img src={qrCode} alt="2FA QR Code" className="w-48 h-48 rounded border border-border" />
@@ -173,33 +93,12 @@ export function MFAChallenge({ onVerified }: { onVerified: () => void }) {
 
   const handleVerify = async () => {
     setLoading(true);
-    const { data: factors } = await supabase.auth.mfa.listFactors();
-    const totp = factors?.totp?.[0];
-
-    if (!totp) {
-      toast.error("No 2FA factor found");
-      setLoading(false);
-      return;
-    }
-
-    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({
-      factorId: totp.id,
-    });
-    if (challengeError) {
-      toast.error(challengeError.message);
-      setLoading(false);
-      return;
-    }
-
-    const { error } = await supabase.auth.mfa.verify({
-      factorId: totp.id,
-      challengeId: challenge.id,
-      code: code.replace(/\D/g, ""),
-    });
-    if (error) {
-      toast.error("Invalid code. Try again.");
-    } else {
+    try {
+      await api.mfaVerify(code.replace(/\D/g, ""));
       onVerified();
+      window.location.reload();
+    } catch {
+      toast.error("Invalid code. Try again.");
     }
     setLoading(false);
   };

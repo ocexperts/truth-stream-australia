@@ -1,11 +1,10 @@
 import { Link } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { MessageSquare, ChevronUp, Trash2 } from "lucide-react";
-import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 
 interface StoryCardProps {
-  story: Tables<"stories">;
+  story: any;
   authorName: string;
   commentCount: number;
   showDelete?: boolean;
