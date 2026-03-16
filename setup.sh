@@ -13,6 +13,14 @@ ADMIN_PASSWORD="changeme123"
 ADMIN_NAME="Admin"
 DOMAIN="localhost"
 APP_DIR="/var/www/arn"
+REPO_URL="https://github.com/ocexperts/truth-stream-australia.git"
+
+# Clone repo if APP_DIR doesn't exist
+if [ ! -d "$APP_DIR" ]; then
+  echo "=== Cloning repository ==="
+  git clone "$REPO_URL" "$APP_DIR"
+fi
+cd "$APP_DIR"
 
 echo ""
 echo "Database password: $DB_PASSWORD"
