@@ -1,6 +1,19 @@
 # ARN - Australian Review Network
 
+# ARN - Australian Review Network
+
 Self-hosted media accountability platform.
+
+## Quick Start
+
+```bash
+git clone https://github.com/ocexperts/truth-stream-australia.git /var/www/arn
+cd /var/www/arn
+chmod +x setup.sh
+sudo ./setup.sh
+```
+
+That's it! The script handles everything (PostgreSQL, Node.js, Nginx, systemd).
 
 ## Architecture
 
