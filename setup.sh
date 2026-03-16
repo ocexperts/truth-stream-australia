@@ -31,7 +31,7 @@ echo ""
 # --- 1. Install dependencies ---
 echo "=== Installing system packages ==="
 sudo apt-get update -qq
-sudo apt-get install -y postgresql postgresql-contrib nginx curl
+sudo apt-get install -y postgresql postgresql-contrib nginx curl git
 
 # Install Node.js 20 from nodesource
 NODE_MAJOR=$(node -v 2>/dev/null | cut -d. -f1 | tr -d v || echo "0")
@@ -40,6 +40,10 @@ if [ "$NODE_MAJOR" -lt 18 ]; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
   sudo apt-get install -y nodejs
 fi
+
+# Ensure npm is available in PATH
+export PATH="/usr/bin:/usr/local/bin:$PATH"
+hash -r
 
 # --- 2. Setup PostgreSQL ---
 echo "=== Setting up PostgreSQL ==="
