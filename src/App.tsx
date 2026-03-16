@@ -8,6 +8,7 @@ import Stories from "./pages/Stories";
 import SubmitStory from "./pages/SubmitStory";
 import StoryDetail from "./pages/StoryDetail";
 import Admin from "./pages/Admin";
+import Media from "./pages/Media";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/submit" element={<SubmitStory />} />
           <Route path="/story/:id" element={<StoryDetail />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/media" element={<Media />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
