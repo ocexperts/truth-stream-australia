@@ -5,27 +5,27 @@ set -e
 
 echo "=== ARN Setup Script ==="
 
-# --- Config (edit these) ---
+# --- Config ---
 DB_PASSWORD="$(openssl rand -hex 16)"
 JWT_SECRET="$(openssl rand -hex 32)"
 ADMIN_EMAIL="admin@arn.net.au"
 ADMIN_PASSWORD="changeme123"
 ADMIN_NAME="Admin"
-DOMAIN="localhost"  # Change to your domain for production
+DOMAIN="localhost"
 APP_DIR="/var/www/arn"
 
 echo ""
 echo "Database password: $DB_PASSWORD"
-echo "JWT secret: $JWT_SECRET"
+echo "JWT secret:        $JWT_SECRET"
 echo "(Save these somewhere safe)"
 echo ""
 
 # --- 1. Install dependencies ---
 echo "=== Installing system packages ==="
-sudo apt-get update
-sudo apt-get install -y postgresql postgresql-contrib nginx nodejs npm curl
+sudo apt-get update -qq
+sudo apt-get install -y postgresql postgresql-contrib nginx curl
 
-# Install Node 20+ if system version is old
+# Install Node.js 20 from nodesource
 NODE_MAJOR=$(node -v 2>/dev/null | cut -d. -f1 | tr -d v || echo "0")
 if [ "$NODE_MAJOR" -lt 18 ]; then
   echo "=== Installing Node.js 20 ==="
@@ -35,25 +35,55 @@ fi
 
 # --- 2. Setup PostgreSQL ---
 echo "=== Setting up PostgreSQL ==="
-sudo -u postgres psql -c "CREATE DATABASE arn;" 2>/dev/null || echo "Database 'arn' already exists"
-sudo -u postgres psql -c "DO \$\$ BEGIN CREATE USER arn_app WITH PASSWORD '$DB_PASSWORD'; EXCEPTION WHEN duplicate_object THEN ALTER USER arn_app WITH PASSWORD '$DB_PASSWORD'; END \$\$;"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE arn TO arn_app;"
-sudo -u postgres psql -d arn -c "GRANT ALL ON SCHEMA public TO arn_app;"
 
-# --- 3. Import schema ---
-echo "=== Importing database schema ==="
+# Ensure PostgreSQL is running
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+
+# Create database and user using heredoc to avoid escaping issues
+sudo -u postgres psql <<EOSQL
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'arn_app') THEN
+    CREATE ROLE arn_app WITH LOGIN PASSWORD '${DB_PASSWORD}';
+  ELSE
+    ALTER ROLE arn_app WITH PASSWORD '${DB_PASSWORD}';
+  END IF;
+END
+\$\$;
+
+SELECT 'CREATE DATABASE arn OWNER arn_app'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'arn')\gexec
+
+GRANT ALL PRIVILEGES ON DATABASE arn TO arn_app;
+EOSQL
+
+# Import schema as postgres (owner), then grant to arn_app
 sudo -u postgres psql -d arn < "$APP_DIR/schema.sql" 2>/dev/null || echo "Schema may already exist (OK)"
-# Grant table permissions after schema import
-sudo -u postgres psql -d arn -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO arn_app;"
-sudo -u postgres psql -d arn -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO arn_app;"
-sudo -u postgres psql -d arn -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO arn_app;"
+sudo -u postgres psql -d arn <<EOSQL
+GRANT ALL ON SCHEMA public TO arn_app;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO arn_app;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO arn_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO arn_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO arn_app;
+EOSQL
 
-# --- 4. Setup backend ---
+# Ensure pg_hba.conf allows password auth for local connections
+PG_HBA=$(sudo -u postgres psql -t -c "SHOW hba_file;" | xargs)
+if ! grep -q "arn_app" "$PG_HBA" 2>/dev/null; then
+  # Add md5 auth rule for arn_app before any existing local rules
+  sudo sed -i "/^local.*all.*all/i local   arn   arn_app   md5" "$PG_HBA"
+  sudo sed -i "/^host.*all.*all.*127/i host   arn   arn_app   127.0.0.1/32   md5" "$PG_HBA"
+  sudo systemctl reload postgresql
+  echo "Added password auth for arn_app in pg_hba.conf"
+fi
+
+# --- 3. Setup backend ---
 echo "=== Setting up backend ==="
 cd "$APP_DIR/server"
 
 cat > .env <<EOF
-DATABASE_URL=postgres://arn_app:${DB_PASSWORD}@localhost:5432/arn
+DATABASE_URL=postgres://arn_app:${DB_PASSWORD}@127.0.0.1:5432/arn
 JWT_SECRET=${JWT_SECRET}
 PORT=3001
 FRONTEND_URL=http://${DOMAIN}
@@ -61,11 +91,22 @@ EOF
 
 npm install
 
+# Test DB connection before seeding
+echo "Testing database connection..."
+node -e "
+import pg from 'pg';
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL || '$(grep DATABASE_URL .env | cut -d= -f2-)' });
+pool.query('SELECT 1').then(() => { console.log('DB connection OK'); pool.end(); }).catch(e => { console.error('DB connection FAILED:', e.message); process.exit(1); });
+" && echo "Connection verified" || {
+  echo "ERROR: Cannot connect to database. Check pg_hba.conf and password."
+  exit 1
+}
+
 # Seed admin user
 node seed-admin.js "$ADMIN_EMAIL" "$ADMIN_PASSWORD" "$ADMIN_NAME"
 echo "Admin user created: $ADMIN_EMAIL / $ADMIN_PASSWORD"
 
-# --- 5. Build frontend ---
+# --- 4. Build frontend ---
 echo "=== Building frontend ==="
 cd "$APP_DIR"
 npm install
@@ -76,35 +117,36 @@ else
   VITE_API_URL="https://${DOMAIN}/api" npm run build
 fi
 
-# --- 6. Setup Nginx ---
+# --- 5. Setup Nginx ---
 echo "=== Configuring Nginx ==="
-sudo tee /etc/nginx/sites-available/arn > /dev/null <<EOF
+sudo tee /etc/nginx/sites-available/arn > /dev/null <<'NGINX'
 server {
     listen 80;
-    server_name ${DOMAIN};
+    server_name DOMAIN_PLACEHOLDER;
 
-    # Frontend
     location / {
-        root ${APP_DIR}/dist;
-        try_files \$uri \$uri/ /index.html;
+        root APPDIR_PLACEHOLDER/dist;
+        try_files $uri $uri/ /index.html;
     }
 
-    # API proxy
     location /api/ {
         proxy_pass http://127.0.0.1:3001/api/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
-EOF
+NGINX
+
+sudo sed -i "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" /etc/nginx/sites-available/arn
+sudo sed -i "s|APPDIR_PLACEHOLDER|${APP_DIR}|g" /etc/nginx/sites-available/arn
 
 sudo ln -sf /etc/nginx/sites-available/arn /etc/nginx/sites-enabled/arn
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
 
-# --- 7. Setup systemd service ---
+# --- 6. Setup systemd service ---
 echo "=== Creating systemd service ==="
 sudo tee /etc/systemd/system/arn-api.service > /dev/null <<EOF
 [Unit]
@@ -134,8 +176,9 @@ echo ""
 echo "  URL:    http://${DOMAIN}"
 echo "  Admin:  ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}"
 echo ""
-echo "  Change DOMAIN in this script and re-run"
-echo "  for production. Add SSL with:"
-echo "    sudo apt install certbot python3-certbot-nginx"
-echo "    sudo certbot --nginx -d yourdomain.com"
+echo "  For production with SSL:"
+echo "    1. Edit DOMAIN in this script"
+echo "    2. Re-run the script"
+echo "    3. sudo apt install certbot python3-certbot-nginx"
+echo "    4. sudo certbot --nginx -d yourdomain.com"
 echo "========================================="
