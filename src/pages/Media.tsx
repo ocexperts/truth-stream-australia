@@ -21,7 +21,7 @@ const Media = () => {
             className="w-full"
             preload="metadata"
           >
-            <source src="/media/kyle.mp3" type="audio/mpeg" />
+            <source src="/media/KIIS1065 [DAB] 2021-08-11 10-14-08.mp3" type="audio/mpeg" />
             Your browser does not support the audio element.
           </audio>
         </div>
