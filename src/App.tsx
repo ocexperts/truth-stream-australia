@@ -8,6 +8,7 @@ import Stories from "./pages/Stories";
 import SubmitStory from "./pages/SubmitStory";
 import StoryDetail from "./pages/StoryDetail";
 import Admin from "./pages/Admin";
+import Media from "./pages/Media";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
