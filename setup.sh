@@ -116,16 +116,20 @@ npm install
 
 # Test DB connection before seeding
 echo "Testing database connection..."
-node -e "
+DATABASE_URL="$(grep '^DATABASE_URL=' .env | cut -d= -f2-)" node -e "
 import pg from 'pg';
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL || '$(grep DATABASE_URL .env | cut -d= -f2-)' });
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 pool.query('SELECT 1').then(() => { console.log('DB connection OK'); pool.end(); }).catch(e => { console.error('DB connection FAILED:', e.message); process.exit(1); });
 " && echo "Connection verified" || {
   echo "ERROR: Cannot connect to database. Check pg_hba.conf and password."
   exit 1
 }
 
-# Seed admin user
+# Seed admin user using the same env file values explicitly
+DATABASE_URL="$(grep '^DATABASE_URL=' .env | cut -d= -f2-)" \
+JWT_SECRET="$(grep '^JWT_SECRET=' .env | cut -d= -f2-)" \
+PORT="$(grep '^PORT=' .env | cut -d= -f2-)" \
+FRONTEND_URL="$(grep '^FRONTEND_URL=' .env | cut -d= -f2-)" \
 node seed-admin.js "$ADMIN_EMAIL" "$ADMIN_PASSWORD" "$ADMIN_NAME"
 echo "Admin user created: $ADMIN_EMAIL / $ADMIN_PASSWORD"
 
