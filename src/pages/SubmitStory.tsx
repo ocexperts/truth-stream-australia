@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 const MEDIA_OUTLETS = [
-  "ABC", "Nine/Fairfax", "Seven West Media", "News Corp",
+  "ARN", "ABC", "Nine/Fairfax", "Seven West Media", "News Corp",
   "SBS", "The Guardian AU", "Crikey", "The Australian",
   "Daily Telegraph", "Herald Sun", "Sky News", "Other",
 ];
