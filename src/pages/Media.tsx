@@ -15,7 +15,10 @@ const Media = () => {
         </div>
 
         <div className="rounded-lg border border-border bg-card p-8">
-          <h2 className="font-display text-xl font-bold mb-4">Kyle</h2>
+          <h2 className="font-display text-xl font-bold mb-2">Kyle</h2>
+          <p className="text-muted-foreground font-body mb-4">
+            Kyle and Jackie bullying engineering staff on a 7 minute rant which went live to air on the 11th of July 2021 at 10:08am
+          </p>
           <audio
             controls
             className="w-full"
