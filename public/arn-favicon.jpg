@@ -7,9 +7,7 @@
     <meta name="description" content="Hold Australian media accountable. Share your experience with media bias, mistreatment, and misconduct.">
     <meta name="author" content="ARN" />
 
-    <link rel="icon" href="/arn-favicon.jpg" type="image/jpeg" />
-    <link rel="shortcut icon" href="/arn-favicon.jpg" type="image/jpeg" />
-    <link rel="apple-touch-icon" href="/arn-favicon.jpg" />
+    <link rel="icon" href="https://arn.net.au/media/ARN.jpg" type="image/jpeg">
 
 
     <meta property="og:type" content="website" />
@@ -22,10 +20,11 @@
   <meta property="og:description" content="Hold Australian media accountable. Share your experience with media bias, mistreatment, and misconduct.">
   <meta name="twitter:description" content="Hold Australian media accountable. Share your experience with media bias, mistreatment, and misconduct.">
   <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/24678350-9185-433f-9099-1d017fca7c81/id-preview-e477a569--18c7c505-c8f9-4c69-958b-675aab3afb6a.lovable.app-1772661377434.png">
+  <script type="module" crossorigin src="/assets/index-BzfquhoK.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CoorfOF0.css">
 </head>
 
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
