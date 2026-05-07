@@ -34,8 +34,23 @@ async function request(path: string, options: RequestInit = {}) {
     throw new Error("Cannot reach the API. If you're self-hosting, use your VM/domain URL instead of the Lovable preview.");
   }
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  const text = await res.text();
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      if (!res.ok) {
+        throw new Error(
+          res.status === 404
+            ? "API not found at this URL. If you're using the Lovable preview, the backend isn't reachable here — use your deployed domain (e.g. https://arn.net.au)."
+            : `Request failed (${res.status})`
+        );
+      }
+      throw new Error("Unexpected response from server (not JSON).");
+    }
+  }
+  if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
   return data;
 }
 
